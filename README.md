@@ -29,5 +29,3 @@ Hosting: Vercel or Firebase Hosting
 Database: Firestore
 
 🗂️ Project Structure
-
-Features

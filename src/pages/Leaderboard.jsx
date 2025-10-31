@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react'
-import { collection, getDocs } from 'firebase/firestore'
+import { collection, getDocs, query, where } from 'firebase/firestore'
+import { Trophy } from 'lucide-react'
 import { db } from '../lib/firebase'
 import useAuth from '../hooks/useAuth'
+import ContributionGrid from '../components/ContributionGrid'
+import { fetchLeaderboardData } from '../utils/leaderboard'
 
 function RatingTrend({ data }) {
   if (!data || data.length === 0) return <div className="h-32 flex items-center justify-center text-white/40">No data yet</div>
@@ -71,48 +74,37 @@ export default function Leaderboard() {
   const { user } = useAuth()
   const [userStats, setUserStats] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [activeDays, setActiveDays] = useState(new Set())
+  const [topEntries, setTopEntries] = useState([])
 
   useEffect(() => {
     ;(async () => {
+      if (!user) return
       setLoading(true)
       try {
-        const scoresSnap = await getDocs(collection(db, 'scores'))
-        const byUser = new Map()
-        const userHistory = new Map()
+        // Active days for contribution grid
+        const loginSnap = await getDocs(collection(db, 'logins', user.uid, 'days'))
+        const activeSet = new Set(loginSnap.docs.map((d) => d.id))
+        setActiveDays(activeSet)
 
-        scoresSnap.forEach((doc) => {
-          const data = doc.data()
-          const uid = data.uid
-          const score = data.score || 0
-          byUser.set(uid, (byUser.get(uid) || 0) + score * 10)
-          if (!userHistory.has(uid)) userHistory.set(uid, [])
-          userHistory.get(uid).push({
-            rating: (byUser.get(uid) || 0) + score * 10,
-            date: data.createdAt?.toDate?.() || new Date(),
-          })
+        // Unified leaderboard among participants
+        const lb = await fetchLeaderboardData(user.uid)
+        setTopEntries(lb.top || [])
+
+        // User's contest count
+        const myScoresSnap = await getDocs(query(collection(db, 'scores'), where('uid', '==', user.uid)))
+        const attended = myScoresSnap.size
+
+        const percentile = lb.total > 0 ? (((lb.total - lb.rank) / lb.total) * 100) : 0
+
+        setUserStats({
+          rating: lb.points || 0,
+          rank: lb.rank,
+          total: lb.total,
+          attended,
+          percentile: percentile.toFixed(1),
+          history: [],
         })
-
-        const entries = Array.from(byUser.entries()).map(([uid, points]) => ({
-          uid,
-          points,
-          history: userHistory.get(uid) || [],
-        }))
-        entries.sort((a, b) => b.points - a.points)
-
-        if (user) {
-          const userEntry = entries.find((e) => e.uid === user.uid) || { points: 0, history: [], uid: user.uid }
-          const rank = entries.findIndex((e) => e.uid === user.uid) + 1 || entries.length + 1
-          const percentile = entries.length > 0 ? ((entries.length - rank) / entries.length) * 100 : 0
-
-          setUserStats({
-            rating: userEntry.points,
-            rank: rank || entries.length + 1,
-            total: entries.length,
-            attended: userEntry.history.length,
-            percentile: percentile.toFixed(1),
-            history: userEntry.history,
-          })
-        }
       } catch (e) {
         console.error(e)
       } finally {
@@ -123,6 +115,17 @@ export default function Leaderboard() {
 
   if (loading) return <div className="flex items-center justify-center min-h-[400px]">Loading...</div>
   if (!userStats) {
+    // Create mock active days for demonstration
+    const mockActiveDays = new Set()
+    const today = new Date()
+    for (let i = 0; i < 365; i++) {
+      if (i % 3 === 0) { // More consistent pattern - every third day
+        const date = new Date(today)
+        date.setDate(today.getDate() - i)
+        mockActiveDays.add(`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`)
+      }
+    }
+
     const mockStats = {
       rating: 1626,
       rank: 151888,
@@ -171,6 +174,21 @@ export default function Leaderboard() {
               <div className="text-sm text-white/60 mb-2">Ranking Distribution</div>
               <DistributionChart userRating={mockStats.rating} />
             </div>
+            <div>
+              <div className="text-sm text-white/60 mb-2">Activity Overview</div>
+              <div className="overflow-x-auto">
+                <ContributionGrid weeks={52} activeSet={mockActiveDays} />
+              </div>
+              <div className="flex items-center justify-between mt-4">
+                <div className="flex items-center gap-4 text-xs text-white/60">
+                  <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-sm bg-white/10"></div> Less</div>
+                  <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-sm bg-emerald-400"></div> More</div>
+                </div>
+                <div className="text-sm text-white/60">
+                  Total Active Days: <span className="text-white font-semibold">{mockActiveDays.size}</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -182,8 +200,13 @@ export default function Leaderboard() {
       <div className="card p-6">
         <div className="space-y-6">
           <div>
-            <div className="text-sm text-white/60">Rating</div>
-            <div className="text-4xl font-bold mt-1">{userStats.rating.toLocaleString()}</div>
+            <div className="flex items-center gap-2 text-yellow-300">
+              <Trophy size={18}/> <div className="text-lg font-semibold">Competitive Rating</div>
+            </div>
+            <div className="mt-4">
+              <div className="text-sm text-white/60">Rating</div>
+              <div className="text-4xl font-bold mt-1">{userStats.rating.toLocaleString()}</div>
+            </div>
           </div>
           <div className="mt-4 bg-white/5 rounded-lg p-4 border border-white/10">
             <div className="text-sm text-white/60">Ranking</div>
@@ -200,9 +223,23 @@ export default function Leaderboard() {
               <div className="text-lg font-semibold mt-1">{userStats.attended} contests</div>
             </div>
           </div>
+          {/* Top Participants */}
           <div>
-            <div className="text-sm text-white/60 mb-2">Rating Trend</div>
-            <RatingTrend data={userStats.history} />
+            <div className="text-sm text-white/60 mb-2">Top Participants</div>
+            <div className="divide-y divide-white/10 border border-white/10 rounded-lg overflow-hidden">
+              {topEntries.slice(0, 10).map((e, idx) => (
+                <div key={e.uid} className="flex items-center justify-between px-3 py-2 bg-white/5">
+                  <div className="flex items-center gap-3">
+                    <div className="w-6 text-white/70">#{idx + 1}</div>
+                    <div className="text-white/90">{e.displayName || e.uid.slice(0,8)}</div>
+                  </div>
+                  <div className="text-white/80 font-semibold">{e.points.toLocaleString()} pts</div>
+                </div>
+              ))}
+              {topEntries.length === 0 && (
+                <div className="px-3 py-6 text-center text-white/50">No participants yet</div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -215,6 +252,19 @@ export default function Leaderboard() {
           <div>
             <div className="text-sm text-white/60 mb-2">Ranking Distribution</div>
             <DistributionChart userRating={userStats.rating} />
+          </div>
+          <div>
+            <div className="text-sm text-white/60 mb-2">Activity Overview</div>
+            <ContributionGrid weeks={26} activeSet={activeDays} />
+            <div className="flex items-center justify-between mt-4">
+              <div className="flex items-center gap-4 text-xs text-white/60">
+                <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-sm bg-white/10"></div> Less</div>
+                <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-sm bg-emerald-400"></div> More</div>
+              </div>
+              <div className="text-sm text-white/60">
+                Total Active Days: <span className="text-white font-semibold">{activeDays.size}</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>

@@ -28,4 +28,4 @@ AI Tools: OpenAI API / Gemini / Whisper for transcription
 Hosting: Vercel or Firebase Hosting
 Database: Firestore
 
-🗂️ Project Structure
+

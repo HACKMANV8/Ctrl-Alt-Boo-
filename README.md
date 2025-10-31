@@ -1,65 +1,66 @@
+# Ctrl-Alt-Boo-
 🚀 Upskill Navigator
 
-Your AI-powered learning companion for smarter, faster upskilling.
+Your all-in-one personalized learning assistant — built to guide, motivate, and upskill users efficiently through smart AI tools and gamification.
 
-🧠 Overview
+## 🧠 Overview
 
-Upskill Navigator empowers learners to plan, track, and accelerate their skill development journey through AI-guided roadmaps, multilingual support, and gamified learning progress.
-Whether you're a student, a self-learner, or a professional, our AI mentor helps you stay consistent, motivated, and on track.
+Upskill Navigator helps learners plan, track, and enhance their skill development journey with AI-powered guidance, real-time streaks/timers, and a synced leaderboard among participants.
 
-🧩 Features
+## 🧩 Features
 
-✅ Firebase Authentication
-Secure email/password login for personalized dashboards.
+- *Auth*: Firebase Authentication (email/password)
+- *AI Chatbot*: Gemini (2.5 Flash) via a dev-only Vite proxy at POST /api/chat
+- *Leaderboard*: Ranks participants (users.isParticipant==true) by total points; weekly points from recent quiz scores
+- *Quizzes*: Writes scores and adds user points; marks users as participants
+- *Streaks*: Current and best streak computed from logins/{uid}/days
+- *Screen Time*: Live per-day timer shared across Home and Streak (screenTime/{uid}/days/{YYYY-MM-DD})
+- *Doubt Solver*: Create doubts, AI-generated answers, status and resolved filtering
 
-🧭 AI Roadmap Generator
-Generates personalized skill-learning paths using AI (Gemini / OpenAI).
+## ⚙ Tech Stack
 
-📝 Smart Survey Module
-Captures user goals and interests to tailor recommendations.
+- Frontend: React + Tailwind CSS + Vite
+- Backend: Firebase (Auth, Firestore)
+- AI: Google Gemini (2.5 Flash)
+- Hosting: Vercel/Firebase Hosting (dev proxy is Vite-only)
+- Database: Firestore
 
-🎧 Audio/Video Learning
-Interactive sessions with focus timers for effective learning.
+## 🔧 Environment
 
-🧾 Topic Summaries & Mindmaps
-Instant AI-generated summaries, mindmaps, and cheatsheets for revision.
+Create a .env in project root:
 
-🏆 Gamification System
-Earn XP, climb ranks, complete daily streaks, and unlock achievements.
 
-🤖 Chatbot Assistant
-AI tutor that summarizes YouTube videos into notes and answers FAQs.
+GOOGLE_API_KEY=YOUR_GEMINI_KEY
 
-🕒 Screen Time Tracker
-Monitor study time and focus levels through session analytics.
 
-🚀 How It Works
+Notes:
+- The Vite dev server reads .env on startup. Restart after changes.
+- The /api/chat proxy is available only in npm run dev. For production, add a serverless function (Netlify/Vercel/Firebase) and point the client to it.
 
-Login / Sign Up → via Firebase Auth
+## ▶ Development
 
-AI Survey → User answers skill-related questions
+bash
+npm install
+npm run dev
 
-Roadmap Generation → AI suggests a personalized learning plan
 
-Daily Progress Tracking → Gamified streaks and focus timers
+- Visit the Chatbot page and ask something to test Gemini.
+- Take a Quiz to generate scores and points; you’ll appear on the leaderboard.
+- Use Streak page to “Mark Today” and see streak/best-streak on Home.
+- Start/Stop the Screen Time timer on Home or Streak and see values sync.
+- Submit a doubt in Doubt Solver; an AI answer will be added automatically.
 
-AI Support → Chatbot assists with doubts, summaries, and motivation
+## 🗂 Firestore Collections (per user where applicable)
 
-💼 Use Cases
+- users/{uid}: { totalPoints: number, isParticipant: boolean, displayName?, photoURL? }
+- scores/{autoId}: { uid, score, subject, createdAt } (weekly points derive from last 7 days)
+- logins/{uid}/days/{YYYY-MM-DD}: { active: true, at }
+- streaks/{uid}: { streak, lastActive, updatedAt }
+- screenTime/{uid}/days/{YYYY-MM-DD}: { totalMs, running, lastStart, updatedAt }
+- doubts/{uid}/items/{autoId}: { question, answer, status: 'pending'|'answered'|'error', resolved, createdAt, updatedAt }
 
-Self-learners building structured learning paths
+Ensure your Firestore rules allow authenticated users to read/write their own documents under these paths.
 
-Students preparing for exams or new skills
+## 🚀 Production note
 
-Colleges using dashboards for tracking student progress
-
-EdTech startups integrating AI-guided learning features
-
-💡 Future Enhancements
-
-Voice-enabled AI mentor
-
-Real-time progress prediction
-
-Team Upskill Navigator
-Built in a 24-hour Hackathon with ❤️ and sleepless nights ☕
+- Replace the Vite dev proxy with a serverless function for /api/chat and configure GOOGLE_API_KEY as a server-side secret.
